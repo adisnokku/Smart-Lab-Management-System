@@ -1,0 +1,6 @@
+{
+  "name": "Smart Lab Management System",
+  "description": "ระบบบริหารจัดการห้องแลปอัจฉริยะ สำหรับจองเครื่องมือวิทยาศาสตร์ ยืมเครื่องแก้ว และเบิกสารเคมี เชื่อมต่อ Google Sheets และ Apps Script",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
