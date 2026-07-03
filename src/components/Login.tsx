@@ -280,9 +280,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                   </button>
                 </form>
 
-                <div className="text-center pt-2">
-                  <span className="text-[11px] text-slate-500">ระบบจำลองการล็อกอินอัตโนมัติ สำหรับสิทธิ์แอดมินใช้: adisno@kku.ac.th</span>
-                </div>
+
               </motion.div>
             )}
 
