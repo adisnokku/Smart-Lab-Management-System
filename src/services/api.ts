@@ -34,6 +34,9 @@ const initializeLocalStorage = () => {
   if (!localStorage.getItem(STORAGE_KEYS.REQUESTS)) {
     localStorage.setItem(STORAGE_KEYS.REQUESTS, JSON.stringify(initialRequests));
   }
+  if (localStorage.getItem(STORAGE_KEYS.APPS_SCRIPT_URL) === null) {
+    localStorage.setItem(STORAGE_KEYS.APPS_SCRIPT_URL, 'https://script.google.com/macros/s/AKfycbz55WedpijZKVjvPYQeFuIGT1FlPmawzf0fXjDjgreJxdHkQmaI3DuHTDo0kG9ekJhaYg/exec');
+  }
 };
 
 // รันการตั้งค่าเริ่มต้นทันทีที่โหลดโมดูลนี้
@@ -64,7 +67,11 @@ export const labApi = {
   // --- การจัดการ URL ของ Google Apps Script ---
   
   getAppsScriptUrl(): string {
-    return localStorage.getItem(STORAGE_KEYS.APPS_SCRIPT_URL) || '';
+    const saved = localStorage.getItem(STORAGE_KEYS.APPS_SCRIPT_URL);
+    if (saved === null) {
+      return '';
+    }
+    return saved;
   },
 
   setAppsScriptUrl(url: string): void {
@@ -286,7 +293,7 @@ export const labApi = {
         }
         throw new Error('Response data is not an array');
       } catch (e) {
-        console.error('Fallback load instruments:', e);
+        console.warn('Fallback load instruments:', e);
       }
     }
     return getLocalData<Instrument>(STORAGE_KEYS.INSTRUMENTS);
@@ -305,7 +312,7 @@ export const labApi = {
         }
         throw new Error('Response data is not an array');
       } catch (e) {
-        console.error('Fallback load glassware:', e);
+        console.warn('Fallback load glassware:', e);
       }
     }
     return getLocalData<Glassware>(STORAGE_KEYS.GLASSWARE);
@@ -324,7 +331,7 @@ export const labApi = {
         }
         throw new Error('Response data is not an array');
       } catch (e) {
-        console.error('Fallback load chemicals:', e);
+        console.warn('Fallback load chemicals:', e);
       }
     }
     return getLocalData<Chemical>(STORAGE_KEYS.CHEMICALS);
@@ -336,6 +343,74 @@ export const labApi = {
    * ส่งคำจองหรือยืม-เบิกอุปกรณ์
    */
   async submitRequest(req: Omit<LabRequest, 'id' | 'requestDate' | 'status'>): Promise<{ success: boolean; message: string }> {
+    // 1. ตรวจสอบการจองเครื่องมือวิทยาศาสตร์ทับซ้อนเวลา
+    if (req.type === 'instrument' && req.instrumentId) {
+      const existingRequests = await this.getRequests();
+      const s2 = new Date(req.startDate).getTime();
+      const e2 = new Date(req.endDate!).getTime();
+
+      const hasOverlap = existingRequests.some(r => {
+        if (
+          r.type === 'instrument' &&
+          r.instrumentId === req.instrumentId &&
+          (r.status === 'Pending' || r.status === 'Approved' || r.status === 'Overdue')
+        ) {
+          const s1 = new Date(r.startDate).getTime();
+          const e1 = new Date(r.endDate!).getTime();
+          // สูตรทับซ้อนเวลา [s1, e1] และ [s2, e2]
+          return s1 < e2 && s2 < e1;
+        }
+        return false;
+      });
+
+      if (hasOverlap) {
+        return {
+          success: false,
+          message: 'ขออภัย: ช่วงเวลาที่คุณระบุทับซ้อนกับคิวจองของผู้อื่นที่ได้รับการอนุมัติหรือกำลังรออนุมัติอยู่แล้ว กรุณาเลือกวันหรือเวลาใหม่อีกครั้ง'
+        };
+      }
+    }
+
+    // 2. ตรวจสอบการยืมเครื่องแก้วเกินจำนวนคงคลังที่มีจริง
+    if (req.type === 'glassware' && req.items) {
+      const glasswareList = await this.getGlassware();
+      for (const reqItem of req.items) {
+        const gw = glasswareList.find(g => g.id === reqItem.id);
+        if (!gw) {
+          return {
+            success: false,
+            message: `ขออภัย: ไม่พบเครื่องแก้วรหัส ${reqItem.id} ในระบบคลัง`
+          };
+        }
+        if (reqItem.qty > gw.availableQty) {
+          return {
+            success: false,
+            message: `ขออภัย: จำนวนที่คุณต้องการยืมของ "${reqItem.name}" (${reqItem.qty} ชิ้น) เกินกว่าจำนวนที่พร้อมให้ยืมในระบบขณะนี้ (พร้อมให้ยืม ${gw.availableQty} ชิ้น)`
+          };
+        }
+      }
+    }
+
+    // 3. ตรวจสอบการยืม/เบิกสารเคมีเกินจำนวนคงคลังที่มีจริง
+    if (req.type === 'chemical' && req.items) {
+      const chemicalList = await this.getChemicals();
+      for (const reqItem of req.items) {
+        const chem = chemicalList.find(c => c.id === reqItem.id);
+        if (!chem) {
+          return {
+            success: false,
+            message: `ขออภัย: ไม่พบสารเคมีรหัส ${reqItem.id} ในระบบคลัง`
+          };
+        }
+        if (reqItem.qty > chem.qty) {
+          return {
+            success: false,
+            message: `ขออภัย: ปริมาณที่คุณต้องการเบิก/ยืมของ "${reqItem.name}" (${reqItem.qty} ${chem.unit}) เกินกว่าปริมาณที่มีในคลังขณะนี้ (คงเหลือในคลัง ${chem.qty} ${chem.unit})`
+          };
+        }
+      }
+    }
+
     const newRequest: LabRequest = {
       ...req,
       id: 'REQ-' + Math.floor(100000 + Math.random() * 900000), // สร้างเลขคำขอแบบสุ่ม
@@ -516,7 +591,7 @@ export const labApi = {
         }
         throw new Error('Response data is not an array');
       } catch (e) {
-        console.error('Fallback load users:', e);
+        console.warn('Fallback load users:', e);
       }
     }
     return getLocalData<User>(STORAGE_KEYS.USERS);
@@ -545,7 +620,7 @@ export const labApi = {
       const uniqueAdvisors = Array.from(new Set([...fetchedAdvisors, ...defaultAdvisors]));
       return uniqueAdvisors;
     } catch (e) {
-      console.error('Error fetching advisors:', e);
+      console.warn('Error fetching advisors:', e);
       return defaultAdvisors;
     }
   },

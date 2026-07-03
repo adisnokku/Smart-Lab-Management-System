@@ -607,7 +607,9 @@ export default function AdminDashboard({ adminUser, onLogout }: AdminDashboardPr
                                     type="date"
                                     value={editFields.expiryDate}
                                     onChange={(e) => setEditFields({ ...editFields, expiryDate: e.target.value })}
-                                    className="p-1 bg-slate-950 border border-slate-800 text-slate-200 rounded text-xs"
+                                    onClick={(e) => { try { (e.currentTarget as any).showPicker(); } catch (err) {} }}
+                                    onFocus={(e) => { try { (e.currentTarget as any).showPicker(); } catch (err) {} }}
+                                    className="p-1 bg-slate-950 border border-slate-800 text-slate-200 rounded text-xs cursor-pointer"
                                   />
                                 ) : (
                                   chem.expiryDate

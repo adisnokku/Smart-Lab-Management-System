@@ -40,6 +40,7 @@ export default function UserDashboard({ user, onLogout, onNavigateToHistory }: U
 
   // สถานะเกี่ยวกับการจองเครื่องมือวิทยาศาสตร์ (Booking Modal)
   const [selectedInstrument, setSelectedInstrument] = useState<Instrument | null>(null);
+  const [instrumentBookings, setInstrumentBookings] = useState<LabRequest[]>([]);
   const [bookingForm, setBookingForm] = useState({
     date: '',
     startTime: '',
@@ -79,6 +80,21 @@ export default function UserDashboard({ user, onLogout, onNavigateToHistory }: U
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (selectedInstrument) {
+      labApi.getRequests().then(allReqs => {
+        const filtered = allReqs.filter(r => 
+          r.type === 'instrument' && 
+          r.instrumentId === selectedInstrument.id &&
+          (r.status === 'Pending' || r.status === 'Approved' || r.status === 'Overdue')
+        );
+        setInstrumentBookings(filtered);
+      }).catch(err => console.error(err));
+    } else {
+      setInstrumentBookings([]);
+    }
+  }, [selectedInstrument]);
 
   // แสดงผล Feedback ชั่วคราว
   const showFeedback = (type: 'success' | 'error', text: string) => {
@@ -218,8 +234,24 @@ export default function UserDashboard({ user, onLogout, onNavigateToHistory }: U
     const startDateTime = `${bookingForm.date}T${bookingForm.startTime}`;
     const endDateTime = `${bookingForm.date}T${bookingForm.endTime}`;
 
-    if (new Date(startDateTime) >= new Date(endDateTime)) {
+    const s2 = new Date(startDateTime).getTime();
+    const e2 = new Date(endDateTime).getTime();
+
+    if (isNaN(s2) || isNaN(e2) || s2 >= e2) {
       showFeedback('error', 'เวลาเริ่มต้นต้องเกิดขึ้นก่อนเวลาสิ้นสุดการใช้งาน');
+      return;
+    }
+
+    // ตรวจสอบการจองทับซ้อนเวลา
+    const hasOverlap = instrumentBookings.some(r => {
+      if (!r.startDate || !r.endDate) return false;
+      const s1 = new Date(r.startDate).getTime();
+      const e1 = new Date(r.endDate).getTime();
+      return s1 < e2 && s2 < e1;
+    });
+
+    if (hasOverlap) {
+      showFeedback('error', 'ขออภัย: ช่วงเวลาที่คุณระบุทับซ้อนกับคิวจองของผู้อื่นที่ได้รับการอนุมัติหรือกำลังรออนุมัติอยู่แล้ว กรุณาเลือกวันหรือเวลาใหม่อีกครั้ง');
       return;
     }
 
@@ -534,21 +566,23 @@ export default function UserDashboard({ user, onLogout, onNavigateToHistory }: U
 
                   <button
                     onClick={() => {
-                      if (item.status !== 'Ready') {
-                        showFeedback('error', `เครื่องมือนี้มีสถานะ "${item.status === 'In Use' ? 'ไม่ว่าง' : 'ซ่อมบำรุง'}" จึงไม่สามารถจองใช้ได้ในเวลานี้`);
+                      if (item.status === 'Maintenance') {
+                        showFeedback('error', `เครื่องมือนี้มีสถานะ "รอซ่อมบำรุง" จึงไม่สามารถจองใช้ได้ในเวลานี้`);
                         return;
                       }
                       setSelectedInstrument(item);
                     }}
-                    disabled={item.status !== 'Ready'}
+                    disabled={item.status === 'Maintenance'}
                     className={`w-full py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
                       item.status === 'Ready'
                         ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-md shadow-emerald-500/5'
+                        : item.status === 'In Use'
+                        ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/5'
                         : 'bg-slate-800 text-slate-500 cursor-not-allowed'
                     }`}
                     id={`book-btn-${item.id}`}
                   >
-                    จองใช้งานเครื่องมือ
+                    {item.status === 'Maintenance' ? 'รอซ่อมบำรุง' : 'จองใช้งานเครื่องมือ'}
                   </button>
                 </div>
               </motion.div>
@@ -741,6 +775,47 @@ export default function UserDashboard({ user, onLogout, onNavigateToHistory }: U
                   </div>
                 )}
 
+                {/* ตารางเวลาการจองปัจจุบัน */}
+                <div className="p-3 bg-slate-950 border border-slate-800 rounded-2xl space-y-2">
+                  <div className="text-xs font-bold text-slate-300 flex items-center justify-between border-b border-slate-800 pb-1.5">
+                    <span className="flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-emerald-400" />
+                      ตารางเวลาที่มีผู้จองไว้แล้ว
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      ({instrumentBookings.length} คิว)
+                    </span>
+                  </div>
+                  {instrumentBookings.length === 0 ? (
+                    <p className="text-[11px] text-slate-500 italic text-center py-1">ยังไม่มีคิวจองในระบบ สามารถจองได้ทุกช่วงเวลา</p>
+                  ) : (
+                    <div className="max-h-28 overflow-y-auto space-y-1.5 pr-1 font-mono text-[11px]">
+                      {instrumentBookings.map((b) => {
+                        const start = new Date(b.startDate);
+                        const end = b.endDate ? new Date(b.endDate) : null;
+                        
+                        // ฟอร์แมต วันที่ (เช่น 02/07/2026) และ เวลา (เช่น 14:00 - 16:00)
+                        const dateStr = start.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                        const timeStr = `${start.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', hour12: false })} - ${end ? end.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', hour12: false }) : 'ไม่ระบุ'}`;
+                        
+                        return (
+                          <div key={b.id} className="flex justify-between items-center bg-slate-900 px-2 py-1.5 rounded-lg border border-slate-800/60">
+                            <span className="text-slate-300 font-medium">{dateStr}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-emerald-400 font-bold">{timeStr}</span>
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded ${
+                                b.status === 'Approved' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'
+                              }`}>
+                                {b.status === 'Approved' ? 'อนุมัติแล้ว' : 'รออนุมัติ'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
                 {/* เลือกวันที่ */}
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
@@ -753,7 +828,9 @@ export default function UserDashboard({ user, onLogout, onNavigateToHistory }: U
                     min={new Date().toISOString().split('T')[0]}
                     value={bookingForm.date}
                     onChange={(e) => setBookingForm(prev => ({ ...prev, date: e.target.value }))}
-                    className="w-full text-xs px-3 py-2.5 bg-slate-950 border border-slate-800 text-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-left"
+                    onClick={(e) => { try { (e.currentTarget as any).showPicker(); } catch (err) {} }}
+                    onFocus={(e) => { try { (e.currentTarget as any).showPicker(); } catch (err) {} }}
+                    className="w-full text-xs px-3 py-2.5 bg-slate-950 border border-slate-800 text-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-left cursor-pointer"
                     id="booking-date-picker"
                   />
                 </div>
@@ -770,7 +847,9 @@ export default function UserDashboard({ user, onLogout, onNavigateToHistory }: U
                       required
                       value={bookingForm.startTime}
                       onChange={(e) => setBookingForm(prev => ({ ...prev, startTime: e.target.value }))}
-                      className="w-full text-xs px-3 py-2.5 bg-slate-950 border border-slate-800 text-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-mono text-left"
+                      onClick={(e) => { try { (e.currentTarget as any).showPicker(); } catch (err) {} }}
+                      onFocus={(e) => { try { (e.currentTarget as any).showPicker(); } catch (err) {} }}
+                      className="w-full text-xs px-3 py-2.5 bg-slate-950 border border-slate-800 text-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-mono text-left cursor-pointer"
                       id="booking-start-time"
                     />
                   </div>
@@ -784,7 +863,9 @@ export default function UserDashboard({ user, onLogout, onNavigateToHistory }: U
                       required
                       value={bookingForm.endTime}
                       onChange={(e) => setBookingForm(prev => ({ ...prev, endTime: e.target.value }))}
-                      className="w-full text-xs px-3 py-2.5 bg-slate-950 border border-slate-800 text-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-mono text-left"
+                      onClick={(e) => { try { (e.currentTarget as any).showPicker(); } catch (err) {} }}
+                      onFocus={(e) => { try { (e.currentTarget as any).showPicker(); } catch (err) {} }}
+                      className="w-full text-xs px-3 py-2.5 bg-slate-950 border border-slate-800 text-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-mono text-left cursor-pointer"
                       id="booking-end-time"
                     />
                   </div>
@@ -1001,14 +1082,18 @@ export default function UserDashboard({ user, onLogout, onNavigateToHistory }: U
                             min={new Date().toISOString().split('T')[0]}
                             value={cartCheckoutForm.startDate}
                             onChange={(e) => setCartCheckoutForm(prev => ({ ...prev, startDate: e.target.value }))}
-                            className="w-full text-xs px-3 py-2 bg-slate-950 border border-slate-800 text-slate-200 rounded-xl"
+                            onClick={(e) => { try { (e.currentTarget as any).showPicker(); } catch (err) {} }}
+                            onFocus={(e) => { try { (e.currentTarget as any).showPicker(); } catch (err) {} }}
+                            className="w-full text-xs px-3 py-2 bg-slate-950 border border-slate-800 text-slate-200 rounded-xl cursor-pointer"
                           />
                           <input
                             type="time"
                             required
                             value={cartCheckoutForm.startTime}
                             onChange={(e) => setCartCheckoutForm(prev => ({ ...prev, startTime: e.target.value }))}
-                            className="w-full text-xs px-3 py-2 bg-slate-950 border border-slate-800 text-slate-200 rounded-xl font-mono"
+                            onClick={(e) => { try { (e.currentTarget as any).showPicker(); } catch (err) {} }}
+                            onFocus={(e) => { try { (e.currentTarget as any).showPicker(); } catch (err) {} }}
+                            className="w-full text-xs px-3 py-2 bg-slate-950 border border-slate-800 text-slate-200 rounded-xl font-mono cursor-pointer"
                           />
                         </div>
                       </div>
@@ -1027,14 +1112,18 @@ export default function UserDashboard({ user, onLogout, onNavigateToHistory }: U
                               min={cartCheckoutForm.startDate || new Date().toISOString().split('T')[0]}
                               value={cartCheckoutForm.endDate}
                               onChange={(e) => setCartCheckoutForm(prev => ({ ...prev, endDate: e.target.value }))}
-                              className="w-full text-xs px-3 py-2 bg-slate-950 border border-slate-800 text-slate-200 rounded-xl"
+                              onClick={(e) => { try { (e.currentTarget as any).showPicker(); } catch (err) {} }}
+                              onFocus={(e) => { try { (e.currentTarget as any).showPicker(); } catch (err) {} }}
+                              className="w-full text-xs px-3 py-2 bg-slate-950 border border-slate-800 text-slate-200 rounded-xl cursor-pointer"
                             />
                             <input
                               type="time"
                               required
                               value={cartCheckoutForm.endTime}
                               onChange={(e) => setCartCheckoutForm(prev => ({ ...prev, endTime: e.target.value }))}
-                              className="w-full text-xs px-3 py-2 bg-slate-950 border border-slate-800 text-slate-200 rounded-xl font-mono"
+                              onClick={(e) => { try { (e.currentTarget as any).showPicker(); } catch (err) {} }}
+                              onFocus={(e) => { try { (e.currentTarget as any).showPicker(); } catch (err) {} }}
+                              className="w-full text-xs px-3 py-2 bg-slate-950 border border-slate-800 text-slate-200 rounded-xl font-mono cursor-pointer"
                             />
                           </div>
                         </div>

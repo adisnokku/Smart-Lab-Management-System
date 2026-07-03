@@ -217,30 +217,6 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                     <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400 text-xs text-center font-medium leading-relaxed">
                       {errorMsg}
                     </div>
-                    {isOnline && (
-                      <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-slate-300 text-xs space-y-2 text-left">
-                        <p className="font-semibold text-amber-400 flex items-center gap-1">
-                          ⚠️ พบปัญหาในโหมดเชื่อมต่อ Google Sheets
-                        </p>
-                        <p className="leading-relaxed text-slate-400 text-[11px]">
-                          เกิดข้อผิดพลาดในการรัน Google Apps Script (เช่น ตัวแปร SPREADSHEET_ID ในโค้ด Apps Script ยังไม่ถูกแก้ไข หรือใส่ ID ของชีตไม่ถูกต้อง)
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            labApi.setAppsScriptUrl('');
-                            setIsOnline(false);
-                            setTempUrl('');
-                            setErrorMsg('');
-                            setPasswordRequired(false);
-                          }}
-                          className="w-full py-1.5 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-[11px] transition-all text-center cursor-pointer"
-                          id="emergency-disable-online-btn"
-                        >
-                          สลับกลับสู่โหมดจำลอง (Local Mode)
-                        </button>
-                      </div>
-                    )}
                   </div>
                 )}
 
@@ -304,9 +280,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                   </button>
                 </form>
 
-                <div className="text-center pt-2">
-                  <span className="text-[11px] text-slate-500">ระบบจำลองการล็อกอินอัตโนมัติ สำหรับสิทธิ์แอดมินใช้: adisno@kku.ac.th</span>
-                </div>
+
               </motion.div>
             )}
 
@@ -583,77 +557,6 @@ export default function Login({ onLoginSuccess }: LoginProps) {
           </AnimatePresence>
         </div>
       </motion.div>
-
-      {/* ส่วนตั้งค่าหลังบ้านฉุกเฉิน (แก้ปัญหาล็อคเอาท์เมื่อตั้งค่าผิดพลาด) */}
-      <div className="max-w-md w-full text-center mt-2 z-10">
-        <button
-          onClick={() => setShowSettings(!showSettings)}
-          className="text-slate-500 hover:text-emerald-400 transition-colors inline-flex items-center gap-1.5 py-1 px-3 rounded-full hover:bg-slate-900 border border-transparent hover:border-slate-800 text-[11px]"
-          id="toggle-login-settings-btn"
-        >
-          <Settings className="w-3.5 h-3.5" />
-          {isOnline ? '🟢 กำลังใช้โหมดออนไลน์ (คลิกเพื่อแก้ไข/ปิด)' : '⚪ กำลังใช้โหมดจำลอง (คลิกเพื่อตั้งค่าระบบจริง)'}
-        </button>
-        
-        {showSettings && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mt-3 p-4 bg-slate-900 border border-slate-800 rounded-2xl text-left space-y-3 shadow-lg"
-            id="login-settings-panel"
-          >
-            <h4 className="text-xs font-bold text-slate-300">ตั้งค่าการเชื่อมต่อ Google Apps Script</h4>
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              ใส่ URL ของ Google Apps Script เว็บแอปที่ติดตั้งไว้ เพื่อดึงข้อมูลจาก Google Sheets จริง หรือเว้นว่างไว้เพื่อรันในโหมดจำลองออฟไลน์ภายในเครื่อง
-            </p>
-            <div className="space-y-2">
-              <input
-                type="text"
-                placeholder="https://script.google.com/macros/s/.../exec"
-                value={tempUrl}
-                onChange={(e) => setTempUrl(e.target.value)}
-                className="w-full text-xs px-3 py-2.5 bg-slate-950 border border-slate-800 text-slate-300 rounded-xl focus:outline-none focus:border-emerald-500 font-mono"
-                id="login-settings-url-input"
-              />
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const cleanUrl = tempUrl.trim();
-                    labApi.setAppsScriptUrl(cleanUrl);
-                    const newOnline = cleanUrl.length > 0 && (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://'));
-                    setIsOnline(newOnline);
-                    setErrorMsg('');
-                    setPasswordRequired(false);
-                    setShowSettings(false);
-                  }}
-                  className="flex-1 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded-xl transition-all cursor-pointer text-center"
-                  id="login-settings-save-btn"
-                >
-                  บันทึกและเชื่อมต่อ
-                </button>
-                {isOnline && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      labApi.setAppsScriptUrl('');
-                      setIsOnline(false);
-                      setTempUrl('');
-                      setErrorMsg('');
-                      setPasswordRequired(false);
-                      setShowSettings(false);
-                    }}
-                    className="flex-1 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs font-semibold rounded-xl transition-all cursor-pointer text-center"
-                    id="login-settings-disable-btn"
-                  >
-                    ปิดโหมดออนไลน์
-                  </button>
-                )}
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </div>
     </div>
   );
 }
