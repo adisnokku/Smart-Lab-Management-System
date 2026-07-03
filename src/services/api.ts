@@ -281,6 +281,7 @@ export const labApi = {
   // --- 2. การดึงข้อมูลอุปกรณ์ คลังเครื่องแก้ว และสารเคมี (Catalog Section) ---
 
   async getInstruments(): Promise<Instrument[]> {
+    let rawInstruments: Instrument[] = [];
     if (this.isOnlineMode()) {
       try {
         const res = await fetch(`${this.getAppsScriptUrl()}?action=getInstruments`);
@@ -289,14 +290,54 @@ export const labApi = {
         }
         const data = await res.json();
         if (Array.isArray(data)) {
-          return data;
+          rawInstruments = data;
+        } else {
+          throw new Error('Response data is not an array');
         }
-        throw new Error('Response data is not an array');
       } catch (e) {
         console.warn('Fallback load instruments:', e);
+        rawInstruments = getLocalData<Instrument>(STORAGE_KEYS.INSTRUMENTS);
       }
+    } else {
+      rawInstruments = getLocalData<Instrument>(STORAGE_KEYS.INSTRUMENTS);
     }
-    return getLocalData<Instrument>(STORAGE_KEYS.INSTRUMENTS);
+
+    // คำนวณสถานะเครื่องมือวิทยาศาสตร์แบบไดนามิกตามเวลาจองปัจจุบัน
+    let allRequests: LabRequest[] = [];
+    try {
+      allRequests = await this.getRequests();
+    } catch (e) {
+      console.warn('Could not fetch requests for dynamic instrument status:', e);
+    }
+
+    const now = new Date().getTime();
+
+    return rawInstruments.map(inst => {
+      // หากถูกตั้งเป็นปิดปรับปรุง (Maintenance) ให้คงไว้ตามเดิม
+      if (inst.status === 'Maintenance') {
+        return inst;
+      }
+
+      // ตรวจสอบว่าช่วงเวลาปัจจุบันทับซ้อนกับคิวการจองของอุปกรณ์นี้ที่อนุมัติหรือเกินกำหนดคืนแล้วหรือไม่
+      const isCurrentlyInUse = allRequests.some(r => {
+        if (
+          r.type === 'instrument' &&
+          r.instrumentId === inst.id &&
+          (r.status === 'Approved' || r.status === 'Overdue') &&
+          r.startDate
+        ) {
+          const start = new Date(r.startDate).getTime();
+          const end = r.endDate ? new Date(r.endDate).getTime() : 0;
+          return now >= start && now <= end;
+        }
+        return false;
+      });
+
+      return {
+        ...inst,
+        status: isCurrentlyInUse ? 'In Use' : 'Ready'
+      } as Instrument;
+    });
   },
 
   async getGlassware(): Promise<Glassware[]> {
