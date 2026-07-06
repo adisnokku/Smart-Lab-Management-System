@@ -255,7 +255,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                           required
                           value={loginPassword}
                           onChange={(e) => setLoginPassword(e.target.value)}
-                          placeholder="กรอกรหัสผ่าน (แอดมินจำลองใช้: admin123)"
+                          placeholder="กรุณากรอกรหัสผ่าน"
                           className="w-full text-sm pl-10 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-slate-200 transition-all placeholder-slate-600"
                           id="login-password-input"
                         />
