@@ -227,7 +227,7 @@ export const initialChemicals: Chemical[] = [
 export const initialUsers: User[] = [
   {
     email: 'adisno@kku.ac.th',
-    name: 'ผศ.ดร. อดิศร นามสกุลดี',
+    name: 'อดิศร หนองบัว',
     role: 'Admin',
     status: 'Active',
     phone: '081-234-5678',
@@ -236,13 +236,13 @@ export const initialUsers: User[] = [
     createdAt: '2026-01-01T08:00:00Z'
   },
   {
-    email: 'somchai.s@kkumail.com',
-    name: 'นายสมชาย สุขสบาย',
-    role: 'Student',
+    email: 'sirilo@kku.ac.th',
+    name: 'ผศ.ดร.ศิรินุช ลอยหา',
+    role: 'Teacher',
     status: 'Active',
     phone: '089-999-8888',
     studentId: '653020123-4',
-    advisor: 'ผศ.ดร. อดิศร นามสกุลดี',
+    advisor: '',
     major: 'เคมีอนินทรีย์',
     createdAt: '2026-03-10T10:30:00Z'
   },
