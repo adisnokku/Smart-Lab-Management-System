@@ -191,7 +191,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
           >
             <ShieldCheck className="w-8 h-8 text-emerald-400" />
           </motion.div>
-          <h1 className="text-2xl font-bold tracking-tight">Smart Lab KKU</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Smart Lab Chemistry</h1>
           <p className="text-emerald-400 text-[10px] mt-1 font-medium tracking-widest uppercase">ระบบบริหารจัดการห้องแลปอัจฉริยะ</p>
         </div>
 
