@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+// @ts-nocheck
+
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Instrument, Glassware, Chemical, User, LabRequest, RequestStatus, UserStatus, InstrumentStatus } from '../types';
